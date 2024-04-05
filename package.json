@@ -8,5 +8,13 @@
   },
   "keywords": [],
   "author": "Maciej Błędkowski",
-  "license": "AGPL-3.0"
+  "license": "AGPL-3.0",
+  "dependencies": {
+    "crawlee": "^3.8.2",
+    "playwright": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.4",
+    "typescript": "^5.4.3"
+  }
 }

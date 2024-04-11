@@ -10,11 +10,14 @@
   "author": "Maciej Błędkowski",
   "license": "AGPL-3.0",
   "dependencies": {
-    "crawlee": "^3.8.2",
-    "playwright": "*"
+    "playwright": "*",
+    "proxy-lists": "^1.23.3",
+    "user-agents": "^1.1.166"
   },
   "devDependencies": {
     "@types/node": "^20.12.4",
+    "@types/proxy-lists": "^1.14.5",
+    "@types/user-agents": "^1.0.4",
     "typescript": "^5.4.3"
   }
 }

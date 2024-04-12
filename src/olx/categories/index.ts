@@ -5,7 +5,7 @@ import playwright, {
   type Locator,
   Page,
 } from "playwright";
-import {type country} from "../index.js";
+import { type country } from "../index.js";
 import UserAgent from "user-agents";
 
 const log = console;
@@ -46,7 +46,7 @@ const EXCLUDED_RESOURCES: resourceTypes[] = [
 let OPTIONS: LaunchOptions = {};
 
 class Browsers {
-  private webEngines: WebEngines[] = ["chromium", "firefox"];
+  private webEngines: WebEngines[] = ["chromium"];
   private browsers: Browser[] = [];
   public isInitialized = false;
 
@@ -85,9 +85,9 @@ class PageFactory {
       await browsers.init();
     }
     const browser = browsers.getRandom();
-    const userAgent = new UserAgent({deviceCategory: "desktop"}).toString();
+    const userAgent = new UserAgent({ deviceCategory: "desktop" }).toString();
 
-    this.context = await browser.newContext({userAgent});
+    this.context = await browser.newContext({ userAgent });
     this.page = await this.context.newPage();
 
     return this.page;
@@ -126,19 +126,27 @@ export class Category {
     }
   }
 
-  async findSub(name: string): Promise<Category | null> {
-    if (!this.subLoaded) {
-      await handleScraper(category, {
-        url: this.getUrl(),
-        data: {superCategory: this},
-      });
-    }
-    for (const category of this.sub) {
-      if (category.getName().toUpperCase() === name.toUpperCase()) {
-        return category;
+  async findSub(names: string[]): Promise<Category | null> {
+    let result: Category = this;
+    for (const name of names) {
+      let found = false;
+      if (!result.subLoaded) {
+        await handleScraper(category, {
+          url: result.getUrl(),
+          data: { superCategory: result },
+        });
+      }
+      for (const category of result.sub) {
+        if (category.getName().toUpperCase() === name.toUpperCase()) {
+          result = category;
+          found = true;
+        }
+      }
+      if (!found) {
+        return null;
       }
     }
-    return null;
+    return result;
   }
 }
 
@@ -156,7 +164,7 @@ async function sitemap(page: Page, rootUrl: string) {
   const title = await page.title();
   log.info(`[SITEMAP] ${title}: ${url}`);
 
-  await page.waitForSelector("#hydrate-root", {timeout: 10000});
+  await page.waitForSelector("#hydrate-root", { timeout: 10000 });
 
   const content = page.locator("#mainContent");
 
@@ -171,7 +179,7 @@ async function sitemap(page: Page, rootUrl: string) {
       async function findSubForSubElement(element: Locator) {
 
         const link = element.locator("> div > a").first();
-        const [linkHref, linkText] = await Promise.all([link.evaluate((e:HTMLAnchorElement) => e.href), await link.textContent()])
+        const [linkHref, linkText] = await Promise.all([link.evaluate((e: HTMLAnchorElement) => e.href), await link.textContent()])
         if (linkHref && linkText) {
           const subCategory = new Category(
             linkText,
@@ -179,15 +187,15 @@ async function sitemap(page: Page, rootUrl: string) {
           );
 
           if (level < 2) {
-          subCategory.setSubs(await getSubCategories(element, level+1));
+            subCategory.setSubs(await getSubCategories(element, level + 1));
           }
           subCategories.push(subCategory);
         }
       }
 
-        for (const subCategoryElement of subCategoryElements) {
-          queue.push(findSubForSubElement(subCategoryElement));
-        }
+      for (const subCategoryElement of subCategoryElements) {
+        queue.push(findSubForSubElement(subCategoryElement));
+      }
       await Promise.all(queue);
       return subCategories;
     }
@@ -199,7 +207,7 @@ async function sitemap(page: Page, rootUrl: string) {
   async function findSubForElement(element: Locator) {
 
     const link = element.locator("a").first();
-    const [linkHref, linkText] = await Promise.all([link.evaluate((e:HTMLAnchorElement) => e.href), await link.textContent()])
+    const [linkHref, linkText] = await Promise.all([link.evaluate((e: HTMLAnchorElement) => e.href), await link.textContent()])
     if (linkHref && linkText) {
       const category = new Category(
         linkText,
@@ -237,7 +245,7 @@ async function category(
   const title = await page.title();
   log.info(`[CATEGORY] ${title}: ${url}`);
 
-  await page.waitForSelector("#hydrate-root", {timeout: 10000});
+  await page.waitForSelector("#hydrate-root", { timeout: 10000 });
 
   const categories: Category[] = [];
 
@@ -252,7 +260,7 @@ async function category(
   for (const categoryElement of categoryElements) {
     const link = categoryElement.locator("a").first();
     const linkText = await link.evaluate((e) => e.childNodes[0]?.textContent);
-    const linkHref = await link.evaluate((e:HTMLAnchorElement) => e.href);
+    const linkHref = await link.evaluate((e: HTMLAnchorElement) => e.href);
     if (linkHref && linkText) {
       const category = new Category(linkText, linkHref);
       categories.push(category);
@@ -294,5 +302,5 @@ export async function getCategories(country: country, options?: LaunchOptions): 
   const mainUrl = `https://www.olx.${country}/`;
 
   browsers.kill();
-  return (await handleScraper<undefined, Category>(sitemap, {url: mainUrl, data: undefined}))!;
+  return (await handleScraper<undefined, Category>(sitemap, { url: mainUrl, data: undefined }))!;
 }

@@ -9,15 +9,7 @@ async function main() {
 
   console.log(categories)
   console.log(
-    (
-      await (
-        await (
-          await (
-            await categories.findSub("Elektronika")
-          )?.findSub("Gry i Konsole")
-        )?.findSub("Konsole")
-      )?.findSub("PlayStation")
-    )?.getUrl()
+    (await categories.findSub(["Elektronika", "Gry i Konsole", "Konsole", "PlayStation"]))?.getUrl()
   );
 }
 

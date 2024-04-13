@@ -1,4 +1,5 @@
-import { Category, getCategories } from './categories';
+import { Category, getCategory, getRootCategory } from './categories';
+import { getOffers } from './offers';
 import { LaunchOptions } from "playwright";
 
 export type country = 'pl' | 'bg' | 'ro' | 'ua' | 'pt';
@@ -11,7 +12,19 @@ export default class Olx {
   constructor(private country: country) {
   }
 
-  async getCategories(): Promise<Category> {
-    return await getCategories(this.country, this.options);
+  async getRootCategory(): Promise<Category> {
+    return await getRootCategory(this.country, this.options);
+  }
+
+  async getCategory(names: string[]): Promise<Category> {
+    return await getCategory(names, this.country, this.options);
+  }
+
+  async getOffers(query: string, category?: Category) {
+    if (category) {
+      return await getOffers(query, category, this.options);
+    } else {
+      return await getOffers(query, this.country, this.options);
+    }
   }
 }

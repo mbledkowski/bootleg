@@ -1,104 +1,16 @@
-import playwright, {
-  type Browser,
-  BrowserContext,
-  LaunchOptions,
+import {
+  type LaunchOptions,
   type Locator,
-  Page,
+  type Page,
 } from "playwright";
 import { type country } from "../index.js";
-import UserAgent from "user-agents";
+import { getPageFactory, type webEngine, type resourceTypes, type PageFactory } from "../../page.js";
 
 const log = console;
 
-export type WebEngines = "chromium" | "firefox" | "webkit";
-
-type resourceTypes =
-  | "document"
-  | "stylesheet"
-  | "image"
-  | "media"
-  | "font"
-  | "script"
-  | "texttrack"
-  | "xhr"
-  | "fetch"
-  | "eventsource"
-  | "websocket"
-  | "manifest"
-  | "other";
-
-const EXCLUDED_RESOURCES: resourceTypes[] = [
-  // "document",
-  "stylesheet",
-  "image",
-  "media",
-  "font",
-  // "script",
-  "texttrack", // https://developer.mozilla.org/en-US/docs/Web/API/TextTrack
-  // "xhr",
-  // "fetch",
-  "eventsource",
-  "websocket",
-  "manifest",
-  "other",
-];
-
+let WEB_ENGINES: webEngine[] = [];
+let EXCLUDED_RESOURCES: resourceTypes[] = [];
 let OPTIONS: LaunchOptions = {};
-
-class Browsers {
-  private webEngines: WebEngines[] = ["chromium"];
-  private browsers: Browser[] = [];
-  public isInitialized = false;
-
-  async init() {
-    for (const webEngine of this.webEngines) {
-      const browser: Browser = await playwright[webEngine].launch(OPTIONS);
-      this.browsers.push(browser);
-    }
-    this.isInitialized = true;
-  }
-
-  getRandom() {
-    const randomIndex = Math.floor(Math.random() * this.browsers.length);
-    const browser = this.browsers[randomIndex];
-    if (browser !== undefined) {
-      return browser;
-    }
-    throw new Error("No browser available");
-  }
-
-  async kill() {
-    for (const browser of this.browsers) {
-      await browser.close();
-    }
-  }
-}
-
-const browsers = new Browsers();
-
-class PageFactory {
-  private context: BrowserContext | undefined;
-  private page: Page | undefined;
-
-  async get() {
-    if (!browsers.isInitialized) {
-      await browsers.init();
-    }
-    const browser = browsers.getRandom();
-    const userAgent = new UserAgent({ deviceCategory: "desktop" }).toString();
-
-    this.context = await browser.newContext({ userAgent });
-    this.page = await this.context.newPage();
-
-    return this.page;
-  }
-
-  async kill() {
-    if (this.context) {
-      await this.context.close();
-    }
-  }
-}
 
 export class Category {
   private sub: Category[] = [];
@@ -127,11 +39,12 @@ export class Category {
   }
 
   async findSub(names: string[]): Promise<Category | null> {
+    const { pageFactory, browsers } = await getPageFactory(WEB_ENGINES, EXCLUDED_RESOURCES, OPTIONS);
     let result: Category = this;
     for (const name of names) {
       let found = false;
       if (!result.subLoaded) {
-        await handleScraper(category, {
+        await handleScraper(pageFactory, category, {
           url: result.getUrl(),
           data: { superCategory: result },
         });
@@ -146,6 +59,7 @@ export class Category {
         return null;
       }
     }
+    browsers.kill();
     return result;
   }
 }
@@ -153,13 +67,6 @@ export class Category {
 async function sitemap(page: Page, rootUrl: string) {
   const categories = new Category("root", rootUrl);
   const url = rootUrl + "sitemap/";
-  await page.route("**/*", (route) => {
-    return EXCLUDED_RESOURCES.includes(
-      route.request().resourceType() as resourceTypes
-    )
-      ? route.abort()
-      : route.continue();
-  });
   await page.goto(url);
   const title = await page.title();
   log.info(`[SITEMAP] ${title}: ${url}`);
@@ -234,13 +141,6 @@ async function category(
   url: string,
   data: { superCategory: Category }
 ) {
-  await page.route("**/*", (route) => {
-    return EXCLUDED_RESOURCES.includes(
-      route.request().resourceType() as resourceTypes
-    )
-      ? route.abort()
-      : route.continue();
-  });
   await page.goto(url);
   const title = await page.title();
   log.info(`[CATEGORY] ${title}: ${url}`);
@@ -270,6 +170,7 @@ async function category(
 }
 
 async function handleScraper<Data, Return>(
+  pageFactory: PageFactory,
   func: (page: Page, url: string, data: Data) => Promise<Return>,
   args: { url: string; data: Data },
   retries = 3
@@ -279,7 +180,6 @@ async function handleScraper<Data, Return>(
   let shouldRetry = true;
   while (shouldRetry && retry < retries) {
     shouldRetry = false;
-    const pageFactory = new PageFactory();
     const page = await pageFactory.get();
     try {
       result = await func(page, args.url, args.data);
@@ -295,12 +195,45 @@ async function handleScraper<Data, Return>(
   return result;
 }
 
-export async function getCategories(country: country, options?: LaunchOptions): Promise<Category> {
+WEB_ENGINES = ["chromium"];
+
+EXCLUDED_RESOURCES = [
+  // "document",
+  "stylesheet",
+  "image",
+  "media",
+  "font",
+  // "script",
+  "texttrack", // https://developer.mozilla.org/en-US/docs/Web/API/TextTrack
+  // "xhr",
+  // "fetch",
+  "eventsource",
+  "websocket",
+  "manifest",
+  "other",
+];
+
+export async function getRootCategory(country: country, options?: LaunchOptions): Promise<Category> {
   if (options) {
-    OPTIONS = options;
+    OPTIONS = options
   }
+
+  const { pageFactory, browsers } = await getPageFactory(WEB_ENGINES, EXCLUDED_RESOURCES, OPTIONS);
+
   const mainUrl = `https://www.olx.${country}/`;
 
+  const category = (await handleScraper<undefined, Category>(pageFactory, sitemap, { url: mainUrl, data: undefined }))!;
   browsers.kill();
-  return (await handleScraper<undefined, Category>(sitemap, { url: mainUrl, data: undefined }))!;
+  return category;
+}
+
+export async function getCategory(names: string[], country: country, options?: LaunchOptions): Promise<Category> {
+  const rootCategory = await getRootCategory(country, options);
+
+  const category = (await rootCategory.findSub(names));
+
+  if (category) {
+    return category;
+  }
+  throw new Error("Category not found");
 }

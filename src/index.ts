@@ -5,12 +5,14 @@ export { Olx };
 
 async function main() {
   const olx = new Olx("pl");
-  const categories: Category = await olx.getCategories();
+  const category: Category = await olx.getCategory(["Elektronika", "Gry i Konsole", "Konsole", "PlayStation"]);
 
-  console.log(categories)
-  console.log(
-    (await categories.findSub(["Elektronika", "Gry i Konsole", "Konsole", "PlayStation"]))?.getUrl()
-  );
+  console.log(category)
+  console.log(category.getUrl())
+
+  const offers = await olx.getOffers("psp", category);
+
+  console.log(offers)
 }
 
 main();
